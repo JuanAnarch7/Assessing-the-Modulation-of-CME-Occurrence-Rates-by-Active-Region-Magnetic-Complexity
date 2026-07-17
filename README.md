@@ -1,4 +1,4 @@
-# CME – Active Region Forecasting & Correlation Analysis
+# CME – Active Region & Correlation Analysis
 
 This repository studies the statistical relationship between solar **Active
 Region (AR)** characteristics and **Coronal Mass Ejection (CME)**
