@@ -36,7 +36,7 @@ PERIODS = {
 # Input variables (matrix rows)
 VARIABLES = [
     ("n_total", "N active regions"),
-    ("n_alta_complejidad", "N high complexity"),
+    ("n_high_complexity", "N high complexity"),
     ("complexity_area_sum", "Area x complexity"),
     ("n_large", "N large"),
     ("n_small", "N medium"),
