@@ -55,7 +55,7 @@ PERIODS = [
 
 VARIABLES = [
     ("n_total", r"$N_{AR}$"),
-    ("n_alta_complejidad", r"$N_{\beta\gamma\delta}$"),
+    ("n_high_complexity", r"$N_{\beta\gamma\delta}$"),
     ("complexity_area_sum", r"$\Phi_{proxy}$"),
     ("n_large", r"$N_{L}$"),
     ("n_small", r"$N_{S}$"),
