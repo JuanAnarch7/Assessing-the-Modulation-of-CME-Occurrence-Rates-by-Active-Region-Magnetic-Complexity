@@ -77,6 +77,19 @@ SUBPOPULATIONS = [
 VARIABLE_LABELS = {var_name: label for var_name, label in VARIABLES}
 SUBPOPULATION_LABELS = {sub_name: label for sub_name, label in SUBPOPULATIONS}
 
+COMPOSITE_LAYOUT = {
+    "CS23_ascenso": (0, 0),
+    "CS23_maximo": (0, 1),
+    "CS23_descenso": (0, 2),
+    "CS24_ascenso": (1, 0),
+    "CS24_maximo": (1, 1),
+    "CS24_descenso": (1, 2),
+    "CS25_ascenso": (2, 0),
+    "CS25_maximo": (2, 1),
+}
+ROW_LABELS = {0: "Cycle 23", 1: "Cycle 24", 2: "Cycle 25"}
+COL_LABELS = {0: "Rising", 1: "Maximum", 2: "Declining"}
+
 
 def load_data(path: Path) -> pd.DataFrame:
     if not path.exists():
@@ -180,7 +193,7 @@ def build_correlation_matrix(df: pd.DataFrame, period_name: str, start: str, end
 
 
 def plot_correlation_matrix(matrix: pd.DataFrame, period_name: str, show_labels: bool = False) -> None:
-    fig, ax = plt.subplots(figsize=(12, 6.5))
+    fig, ax = plt.subplots(figsize=(12.6, 7.2))
     fig.patch.set_facecolor("white")
 
     subpop_order = [sub_name for sub_name, _ in SUBPOPULATIONS]
@@ -223,8 +236,102 @@ def plot_correlation_matrix(matrix: pd.DataFrame, period_name: str, show_labels:
     print(f"Guardado: {out_path}")
 
 
+def load_composite_matrix_from_csv(period_name: str) -> pd.DataFrame:
+    csv_path = OUT_DIR / f"{period_name}.csv"
+    if not csv_path.exists():
+        raise FileNotFoundError(f"No se encontró el CSV para la figura compuesta: {csv_path}")
+
+    df = pd.read_csv(csv_path, index_col=0)
+    rho_cols = [col for col in df.columns if col.startswith("rho_")]
+    if not rho_cols:
+        raise ValueError(f"El archivo {csv_path} no contiene columnas rho_*")
+
+    rho_df = df[rho_cols].copy()
+    rho_df.columns = [col.replace("rho_", "", 1) for col in rho_df.columns]
+
+    var_order = [var_name for var_name, _ in VARIABLES]
+    subpop_order = [sub_name for sub_name, _ in SUBPOPULATIONS]
+    return rho_df.reindex(index=var_order, columns=subpop_order).astype(float)
+
+
+def save_composite_pdf(results: dict) -> None:
+    fig, axes = plt.subplots(3, 3, figsize=(12, 8.5), squeeze=False)
+    fig.patch.set_facecolor("white")
+
+    cmap = plt.cm.coolwarm
+    norm = plt.Normalize(vmin=-1, vmax=1)
+
+    for period_name in results:
+        if period_name not in COMPOSITE_LAYOUT:
+            continue
+
+        row, col = COMPOSITE_LAYOUT[period_name]
+        ax = axes[row, col]
+        data = load_composite_matrix_from_csv(period_name)
+
+        im = ax.imshow(data.to_numpy(), cmap=cmap, norm=norm)
+        ax.set_aspect("equal", adjustable="box")
+
+        var_labels = [VARIABLE_LABELS.get(var_name, var_name) for var_name in data.index]
+        subpop_labels = [SUBPOPULATION_LABELS.get(sub_name, sub_name) for sub_name in data.columns]
+
+        ax.set_xticks(np.arange(len(data.columns)))
+        ax.set_yticks(np.arange(len(data.index)))
+
+        if row == axes.shape[0] - 1 or (row == 1 and col == 2):
+            ax.set_xticklabels(subpop_labels, rotation=45, ha="right", fontsize=7)
+        else:
+            ax.set_xticklabels([])
+
+        if col == 0:
+            ax.set_yticklabels(var_labels, fontsize=7)
+        else:
+            ax.set_yticklabels([])
+
+        ax.tick_params(axis="both", which="both", length=0)
+
+        for i in range(data.shape[0]):
+            for j in range(data.shape[1]):
+                value = data.iloc[i, j]
+                if np.isnan(value):
+                    text = "NaN"
+                    color = "black"
+                else:
+                    text = f"{value:.3f}"
+                    color = "white" if abs(value) > 0.6 else "black"
+                ax.text(j, i, text, ha="center", va="center", fontsize=5.5, color=color)
+
+        for spine in ax.spines.values():
+            spine.set_visible(False)
+
+    empty_ax = axes[2, 2]
+    empty_ax.axis("off")
+
+    cbar_ax = fig.add_axes([0.92, 0.24, 0.02, 0.6])
+    cbar = fig.colorbar(im, cax=cbar_ax)
+    cbar.set_label("Spearman's ρ", fontsize=10)
+
+    row_y_positions = [0.79 - row_idx * 0.26 for row_idx in ROW_LABELS.keys()]
+    for row_idx, label in ROW_LABELS.items():
+        y_pos = row_y_positions[row_idx] - 0.02
+        fig.text(0.04, y_pos, label, rotation=90, ha="center", va="center", fontsize=11)
+
+    col_x_positions = [0.20 + col_idx * 0.27 for col_idx in COL_LABELS.keys()]
+    for col_idx, label in COL_LABELS.items():
+        x_pos = col_x_positions[col_idx] + 0.01
+        fig.text(x_pos, 0.91, label, ha="center", va="center", fontsize=11)
+
+    fig.suptitle("Correlation matrices by phase and solar cycle", fontsize=14, y=0.96)
+    fig.subplots_adjust(left=0.09, right=0.90, bottom=0.10, top=0.90, wspace=0.06, hspace=0.04)
+
+    out_path = OUT_DIR / "composite_phase_matrices.pdf"
+    fig.savefig(out_path, dpi=600, bbox_inches="tight")
+    plt.close(fig)
+    print(f"Guardado: {out_path}")
+
+
 def save_outputs(results: dict) -> None:
-    SHOW_LABELS = True  
+    SHOW_LABELS = True
 
     for name, (rho_matrix, p_matrix, ci_lo_matrix, ci_hi_matrix) in results.items():
         combined = pd.concat(
@@ -238,6 +345,8 @@ def save_outputs(results: dict) -> None:
 
     for name, (rho_matrix, _, _, _) in results.items():
         plot_correlation_matrix(rho_matrix, name, show_labels=SHOW_LABELS)
+
+    save_composite_pdf(results)
 
 
 def main() -> None:
