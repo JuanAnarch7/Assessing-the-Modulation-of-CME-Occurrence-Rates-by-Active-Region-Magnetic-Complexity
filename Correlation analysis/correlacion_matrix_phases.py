@@ -321,7 +321,6 @@ def save_composite_pdf(results: dict) -> None:
         x_pos = col_x_positions[col_idx] + 0.01
         fig.text(x_pos, 0.91, label, ha="center", va="center", fontsize=11)
 
-    fig.suptitle("Correlation matrices by phase and solar cycle", fontsize=14, y=0.96)
     fig.subplots_adjust(left=0.09, right=0.90, bottom=0.10, top=0.90, wspace=0.06, hspace=0.04)
 
     out_path = OUT_DIR / "composite_phase_matrices.pdf"
