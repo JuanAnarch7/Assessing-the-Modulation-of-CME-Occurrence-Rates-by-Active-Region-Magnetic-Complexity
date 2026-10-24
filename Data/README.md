@@ -2,7 +2,7 @@
 
 This folder holds the datasets and processing scripts of the CME (Coronal Mass Ejection) monthly occurrence project. It covers data acquisition, preprocessing, and feature engineering for CME and solar Active Region (AR) data, and produces the monthly master dataset used by the statistical analysis.
 
-> **Status (2026-10-24).** `Lecture.py` has been rewritten (see [`Lecture.py`](#lecturepy)) and validated on the CDAW catalog downloaded on 2026-07-31. `master_dataset_builder.py` does **not yet** use the new observing-coverage file; until it is updated, the monthly CME counts in `master_monthly.csv` still treat the 1998–1999 SOHO interruptions as months with zero CMEs. See [Known issues and pending changes](#known-issues-and-pending-changes).
+> **Status (2026-10-24).** `Lecture.py` and `noaa_mount_wilson.py` have been rewritten (see their sections); `Lecture.py` was validated on the CDAW catalog downloaded on 2026-07-31. `master_dataset_builder.py` does **not yet** use the new observing-coverage file; until it is updated, the monthly CME counts in `master_monthly.csv` still treat the 1998–1999 SOHO interruptions as months with zero CMEs. See [Known issues and pending changes](#known-issues-and-pending-changes).
 
 ---
 
@@ -64,7 +64,7 @@ flowchart TD
 |---|---|---|---|---|
 | 0 | *(manual download)* | — | `Soho_Lasco_YYYY_MM_DD.txt` | CDAW text catalog (see [CME data](#cme-data-soholasco-cdaw-catalog)). Name the file with its download date. |
 | 1 | `Lecture.py` | `Soho_Lasco_YYYY_MM_DD.txt` | `datos_procesados_TAG.csv`, `lasco_gaps_TAG.csv`, `lasco_monthly_coverage_TAG.csv` | Independent of step 2; can be run in parallel. |
-| 2 | `noaa_mount_wilson.py` | NOAA SRS daily reports (downloaded automatically) | `mount_wilson_dataset.csv`, `mount_wilson_summary.csv` | Independent of step 1. Downloads are cached in `srs_cache/`. |
+| 2 | `noaa_mount_wilson.py` | NOAA SRS daily reports (downloaded automatically) | `mount_wilson_dataset.csv`, `mount_wilson_summary.csv`, `srs_day_status.csv` | Independent of step 1. Downloads are cached in `srs_cache/`. |
 | 3 | `ar_features_builder.py` | `mount_wilson_dataset.csv` | `ar_features_annual.csv`, `ar_features_monthly.csv`, `ar_features_weekly.csv` | Requires the output of step 2. |
 | 4 | *(manual download)* | — | `SN_m_tot_V2.0.txt` | SILSO monthly sunspot number (see [Sunspot data](#sunspot-data)). |
 | 5 | `master_dataset_builder.py` | `datos_procesados_TAG.csv`, `ar_features_monthly.csv`, `SN_m_tot_V2.0.txt` | `master_monthly.csv` | Requires steps 1, 3 and 4. Edit `CME_FILE` so it points to the `TAG` produced in step 1. |
@@ -75,7 +75,7 @@ python Lecture.py --input Soho_Lasco_2026_07_31.txt --tag 2026_07_31
 python noaa_mount_wilson.py --start 1996-01-01 --end 2026-07-31
 
 # Step 3 depends on step 2's output
-python ar_features_builder.py --input mount_wilson_dataset.csv --start 1996-01 --end 2026-07
+python ar_features_builder.py --input mount_wilson_dataset.csv --status srs_day_status.csv --start 1996-01 --end 2026-07
 
 # Step 4: download SN_m_tot_V2.0.txt from SILSO and place it in this folder
 
@@ -270,36 +270,77 @@ The fraction of `normal` events also changes over time (about 15 % in 1996, 68 %
 
 **Data source:** [NOAA/NGDC — Solar Region Summaries](https://www.ngdc.noaa.gov/stp/space-weather/swpc-products/daily_reports/solar_region_summaries/)
 
-**What it does:**
+Downloads (or reads from the local cache) one SRS report per day, parses Section I ("Regions with Sunspots"), and writes one row per active region per observation day, plus a record of what happened with every requested report.
 
-1. **Downloads** the daily `.txt` files from NOAA for a configurable date range, using a local cache to avoid re-downloading.
-2. **Parses** each file, locating the *"I. Regions with Sunspots"* section and extracting the tabular data for each region using regular expressions.
-3. **Normalizes** the Mount Wilson magnetic classification (Alpha, Beta, Beta-Gamma, Beta-Gamma-Delta, etc.) into a standard format (α, β, βγ, βγδ...) and assigns it an ordinal complexity value.
-4. **Builds** a detailed dataset (one row per active region per day) and a daily aggregated summary.
-5. **Exports** both results to CSV and prints descriptive statistics to the console.
+**Usage**
 
-**Generated datasets:**
+```bash
+python noaa_mount_wilson.py --start 1996-01-01 --end 2026-07-31
+```
 
-| File | Description |
-|---|---|
-| `mount_wilson_dataset.csv` | Detailed dataset: one row per active region detected each day. |
-| `mount_wilson_summary.csv` | Daily summary: aggregated counts and complexity per date. |
+| Argument | Description | Default |
+|---|---|---|
+| `--start` | First report date (YYYY-MM-DD) | `1996-01-01` |
+| `--end` | Last report date (YYYY-MM-DD) | today |
+| `--output` | Region-level dataset | `mount_wilson_dataset.csv` |
+| `--summary` | Daily summary | `mount_wilson_summary.csv` |
+| `--status` | Status of every report date | `srs_day_status.csv` |
+
+Requirements: `pandas`, `requests`; `tqdm` optional (progress bar).
+
+**Processing steps**
+
+1. **Download with cache.** Each report is read from `srs_cache/YYYY/YYYYMMDDSRS.txt` if present; otherwise it is downloaded. HTTP 404 is recorded as `missing_404`. Network errors and HTTP 5xx are retried 3 times with exponential back-off and recorded as `network_error` / `http_<code>`; failed downloads are not cached, so a later run retries them.
+2. **Section I parsing.** Lines between the `I.  Regions with Sunspots` header and the next section (`IA.` or `II.`; some reports write `1.` / `1A.` with the digit one, which is also accepted) are matched against the fixed-column pattern `Nmbr Location Lo Area Z LL NN Mag Type`. In a few reports `NN` or `Mag Type` is blank: the region is kept with `nn = NaN` or `mag_type = Unknown` (`complexity = NaN`). A line reading `None` marks a day without spotted regions. Lines that do not match the pattern are counted and the first one is kept as an example (not silently dropped).
+3. **Observation date.** The SRS issued on day *D* at 00:30 UT gives positions valid at 24:00 UT of day *D − 1* (`Locations Valid at DD/2400Z`). `date` is the observation date read from that header (`date_source = header`); if the header cannot be read, `date` = report date − 1 day (`date_source = assumed`). The report date is kept in `report_date`. *The previous version stored the report date in `date`, one day late.*
+4. **Full NOAA number.** The SRS prints region numbers modulo 10 000 (9999 was followed by 0000 in June 2002; region 14466 appears as `4466`). `noaa_full` adds 10 000 to numbers below 9000 observed after 2002-06-01, so regions can be matched with external catalogs (e.g. NOAA flare lists). Within 1996–2026 the printed numbers do not collide, so `noaa_number` still identifies regions uniquely.
+5. **Normalisation.** Mount Wilson types are case-insensitive (`Beta` and `BETA` both occur) and mapped to α, β, βδ, βγ, γ, γδ, βγδ with the ordinal complexity scale below; partial matches try the longest names first. McIntosh classes are normalised to `Zpc` case (the SRS used upper case for the 2nd letter until 2000) and split into their three components. `is_delta` flags δ configurations.
+6. **Duplicate observation days.** If two reports describe the same observation day, the report issued the day after it is kept (otherwise the latest), and the other is marked `superseded`, so that regions are not counted twice.
+7. **Outputs and report.** The script writes the three CSV files and prints the count of report dates by status, the source of the observation dates, reports with unparsed lines, download errors, and the distribution of magnetic types.
+
+**Generated datasets**
+
+| File | One row per | Description |
+|---|---|---|
+| `mount_wilson_dataset.csv` | Region per observation day | Region records (columns below) |
+| `mount_wilson_summary.csv` | Observation day with regions | Counts, total area, complexity, δ regions |
+| `srs_day_status.csv` | Requested report date | File status and parsing diagnostics (below) |
 
 **Columns in `mount_wilson_dataset.csv`:**
 
 | Column | Description |
 |---|---|
-| `date` | Report date (YYYY-MM-DD) |
-| `noaa_number` | NOAA number of the active region |
+| `date` | Observation date (YYYY-MM-DD): positions valid at 24:00 UT of this day |
+| `report_date` | Issue date of the SRS file |
+| `date_source` | `header` (read from "Valid at DD/2400Z") or `assumed` (report date − 1) |
+| `noaa_number` | Region number as printed (4 digits, modulo 10 000) |
+| `noaa_full` | Full NOAA region number |
 | `location` | Heliographic position (e.g. N14E23) |
+| `lat`, `lon` | Latitude and central-meridian distance in degrees (north and west positive) |
 | `lo` | Carrington longitude |
-| `area` | Area in millionths of the solar hemisphere |
-| `z_class` | Modified Zurich classification (McIntosh); letter case varies between years in the SRS |
+| `area` | Spot area in millionths of the solar hemisphere |
+| `z_class` | McIntosh class, normalised case (e.g. `Ekc`) |
+| `mcintosh_z`, `mcintosh_p`, `mcintosh_c` | Zurich class, penumbra of the largest spot, spot distribution |
 | `ll` | Longitudinal extent (degrees) |
 | `nn` | Number of sunspots |
-| `mag_type_raw` | Magnetic type as it appears in the original report |
-| `mag_type` | Normalized magnetic type (α, β, βγ, βγδ...) |
+| `mag_type_raw` | Magnetic type as printed in the report |
+| `mag_type` | Normalised magnetic type (α, β, βγ, βγδ...) |
 | `complexity` | Ordinal complexity value (1–5) |
+| `is_delta` | δ configuration (βδ, γδ, βγδ) |
+
+**Columns in `srs_day_status.csv`:**
+
+| Column | Description |
+|---|---|
+| `report_date` | Requested report date |
+| `file_status` | `parsed` (≥ 1 region), `no_regions` (report says `None`: a real zero), `empty_section` (Section I found but no regions and no `None`), `no_section_I`, `superseded` (another report covers the same observation day), `missing_404`, `network_error`, `http_<code>` |
+| `obs_date` | Observation date of the report |
+| `date_source` | `header` or `assumed` |
+| `n_regions` | Regions parsed |
+| `n_unparsed` | Lines in Section I that did not match the pattern |
+| `unparsed_example` | First unmatched line |
+
+Use `file_status` to tell days without spotted regions (`no_regions`) from days without data (`missing_404`, errors). In the previous dataset both appeared simply as absent days: 2 008 days were absent between 1996-01-02 and 2026-06-11, of which 38 fall in months with a monthly sunspot number above 40 (e.g. 2001-08-28, 2024-04-21) and cannot be spotless.
 
 **Mount Wilson complexity scale:**
 
@@ -311,94 +352,60 @@ The fraction of `normal` events also changes over time (about 15 % in 1996, 68 %
 | βγ (Beta-Gamma) / γ (Gamma) | 4 |
 | γδ (Gamma-Delta) / βγδ (Beta-Gamma-Delta) | 5 |
 
-> The placement of βδ (3) below βγ (4) is under review: δ configurations are the most flare-productive. A separate δ flag is planned (see [Known issues](#known-issues-and-pending-changes)).
+> The placement of βδ (3) below βγ (4) is under review: δ configurations are the most flare-productive. The scale is unchanged for now; `is_delta` allows δ regions to be analysed separately.
 
-**Main components:**
-
-- `normalize_mag_type()` — normalizes the raw magnetic type text into the canonical format and its complexity value.
-- `download_srs()` — downloads (or reads from cache) the SRS file for a given date, with retries and HTTP error handling.
-- `parse_srs()` — extracts records from the "Regions with Sunspots" section using regex over fixed-width columns.
-- `build_dataset()` — orchestrates the download and parsing process for the entire date range, returning a pandas `DataFrame`.
-- `build_summary()` — groups by date and computes aggregated metrics (active regions, max/mean complexity, counts by type).
-
-**Usage:**
-
-```bash
-python noaa_mount_wilson.py --start 1996-01-01 --end 2026-07-31 \
-    --output mount_wilson_dataset.csv \
-    --summary mount_wilson_summary.csv
-```
-
-| Argument | Description | Default value |
-|---|---|---|
-| `--start` | Start date (YYYY-MM-DD) | `2010-01-01` |
-| `--end` | End date (YYYY-MM-DD) | `2025-12-31` |
-| `--output` | Path for the detailed dataset CSV | `mount_wilson_dataset.csv` |
-| `--summary` | Path for the daily summary CSV | `mount_wilson_summary.csv` |
+**Main functions:** `download_srs()` (cache, retries, status), `parse_srs()` (Section I, observation date, diagnostics), `observation_date()`, `full_noaa_number()`, `normalize_mag_type()`, `normalize_mcintosh()`, `parse_location()`, `build_dataset()`, `build_summary()`, `print_report()`.
 
 ---
 
-### `ar_features_builder.py` — Period-based Mount Wilson Complexity Features
+### `ar_features_builder.py` — Period-based Active Region Features
 
-Builds aggregated features (annual, monthly, weekly) from `mount_wilson_dataset.csv`. For each period, every active region (AR) is represented once, using its **peak complexity** within that period — avoiding double-counting from multiple daily observations of the same region.
+Builds annual, monthly and weekly active-region features from the outputs of `noaa_mount_wilson.py`.
 
-**What it does:**
-
-1. **Loads** `mount_wilson_dataset.csv` and computes, for each active region (`noaa_number`), its **persistence** (`persistence_days`) — the number of days between its first and last appearance in the dataset. Because the SRS lists only regions with spots on the visible disk, persistence measures visibility (at most ~16 days, one disk passage), not the full lifetime of the region.
-2. **Classifies** each region by persistence (`size_class`): `ephemeral` (≤ 1 day), `small` (2–6 days), `large` (≥ 7 days).
-3. Flags regions of **high complexity** (≥ 4) and computes `complexity × area` per daily observation.
-4. Creates period columns: `year`, `yearmonth`, `yearweek`.
-5. **Aggregates** by period, using each region's **peak complexity** within that period: `n_total`, `n_high_complexity`, `complexity_area_sum`, `n_large`, `n_small`, `n_ephemeral`.
-6. **Reindexes** monthly and weekly results to the full configured date range, filling periods with no active regions (deep solar minima) with zeros instead of leaving them absent.
-7. Runs a **consistency check**: `n_large + n_small + n_ephemeral == n_total` for every year.
-8. Saves `ar_features_annual.csv`, `ar_features_monthly.csv`, and `ar_features_weekly.csv`.
-
-> **Counting unit.** A region observed across a month boundary is counted in both months. Monthly counts are therefore *region-months*: their sum over 1996-01 → 2026-02 is 7 719, whereas the number of unique NOAA regions in the same period is 6 422.
-
-**Generated datasets:**
-
-| File | Granularity |
-|---|---|
-| `ar_features_annual.csv` | One row per year |
-| `ar_features_monthly.csv` | One row per calendar month, reindexed to the full date range |
-| `ar_features_weekly.csv` | One row per ISO week, reindexed to the full date range |
-
-**Columns:**
-
-| Column | Description |
-|---|---|
-| `year` / `yearmonth` / `yearweek` | Period identifier |
-| `n_total` | Active regions observed in the period (region-months for the monthly file) |
-| `n_high_complexity` | Regions whose **peak** complexity in the period was ≥ `HIGH_COMPLEXITY` (default 4: βγ, γ, γδ, βγδ) |
-| `complexity_area_sum` | Sum of `complexity × area` across all daily observations in the period (Φ_proxy) |
-| `n_large` | Regions with persistence ≥ `THRESH_LARGE` days |
-| `n_small` | Regions with persistence between `THRESH_EPHEMERAL` and `THRESH_LARGE` days |
-| `n_ephemeral` | Regions with persistence ≤ `THRESH_EPHEMERAL` day |
-
-**Configuration:**
-
-| Constant | Description | Default |
-|---|---|---|
-| `THRESH_EPHEMERAL` | Max persistence (days) to classify a region as `ephemeral` | `1` |
-| `THRESH_LARGE` | Min persistence (days) to classify a region as `large` | `7` |
-| `HIGH_COMPLEXITY` | Complexity threshold for "high complexity" (βγ, γ, γδ, βγδ) | `4` |
-| `DEFAULT_START_DATE` / `DEFAULT_END_DATE` | Full date range used to reindex monthly/weekly outputs | `1996-01` / `2026-02` |
-
-**Usage:**
+**Usage**
 
 ```bash
-python ar_features_builder.py \
-    --input mount_wilson_dataset.csv \
-    --start 1996-01 --end 2026-07 \
-    --outdir .
+python ar_features_builder.py --input mount_wilson_dataset.csv --status srs_day_status.csv \
+    --start 1996-01 --end 2026-07 [--outdir .]
 ```
 
 | Argument | Description | Default |
 |---|---|---|
-| `--input` | Path to the input dataset | `mount_wilson_dataset.csv` |
-| `--start` | Start of the reindexing range (YYYY-MM) | `1996-01` |
-| `--end` | End of the reindexing range (YYYY-MM) | `2026-02` |
-| `--outdir` | Output directory for the generated CSV files | current directory |
+| `--input` | Region-level dataset | `mount_wilson_dataset.csv` |
+| `--status` | Day status file (usable vs missing days) | `srs_day_status.csv` |
+| `--start` / `--end` | First / last month (YYYY-MM) | `1996-01` / `2026-07` |
+| `--outdir` | Output folder | current folder |
+
+**Processing steps**
+
+1. **Region identity and persistence.** Regions are identified by `noaa_full`. Persistence = days between the first and last observation of the region in the whole dataset (+1). Since the SRS lists only regions with spots on the Earth-facing disk, persistence measures visibility (at most ~14–16 days per passage), not physical lifetime. Classes: short-lived (≤ 1 day), mid-lived (2–6 days), long-lived (≥ 7 days).
+2. **Usable days.** A day is usable when its report is `parsed` or `no_regions` (a real zero). `missing_404`, download errors, `no_section_I` and `empty_section` are missing data; `superseded` reports are ignored. Without a status file, days without regions are assumed spotless (with a warning).
+3. **Counts per period.** Each region contributes once to every period in which it is observed (*region-periods*), with its peak complexity and whether it showed a δ configuration in that period. `n_new_regions` counts regions first seen in the period, so its sum over all periods equals the number of unique regions.
+4. **Area sums per period.** Sums over daily observations of total area, δ-region area, complex-region area (complexity ≥ 4), area at |central-meridian distance| ≤ 45° (centre) and > 45° (limb), and Φ_proxy = Σ complexity × area (records with unknown magnetic type are excluded from Φ_proxy). Each sum also has a `_daily_mean` version (sum / usable days), which is insensitive to missing reports and should be used in the analysis.
+5. **Missing periods.** Periods with usable days but no regions get 0; periods without any usable day get `NaN` in every feature.
+6. **Checks.** `n_long_lived + n_mid_lived + n_short_lived == n_regions` in every period; the script prints the number of periods without usable days and with SRS coverage < 0.9.
+
+**Columns of `ar_features_{annual,monthly,weekly}.csv`**
+
+| Column | Description |
+|---|---|
+| `year` / `yearmonth` / `yearweek` | Period |
+| `n_usable_days`, `n_days`, `srs_coverage` | Usable SRS days, calendar days, and their ratio |
+| `n_regions` | Regions observed in the period (region-periods) |
+| `n_new_regions` | Regions first observed in the period (unique regions) |
+| `n_high_complexity` | Regions with peak complexity ≥ 4 (βγ, γ, γδ, βγδ) |
+| `n_delta` | Regions with a δ configuration in the period (βδ, γδ, βγδ) |
+| `n_long_lived`, `n_mid_lived`, `n_short_lived` | Regions by persistence class |
+| `area_sum` | Σ daily spot area (millionths of hemisphere × days) |
+| `area_delta`, `area_complex` | Σ daily area of δ regions / of regions with complexity ≥ 4 |
+| `area_center`, `area_limb` | Σ daily area at \|lon\| ≤ 45° / > 45° |
+| `complexity_area_sum` | Φ_proxy = Σ daily complexity × area |
+| `*_daily_mean` | Each area sum divided by `n_usable_days` |
+| `frac_delta_area` | `area_delta / area_sum` |
+
+**Renamed columns** (previous → current): `n_total` → `n_regions`; `n_large` → `n_long_lived`; `n_small` → `n_mid_lived`; `n_ephemeral` → `n_short_lived`. The analysis scripts in `../Correlation analysis/` still use the previous names and will be updated in the pipeline refactor.
+
+**Configuration constants:** `THRESH_SHORT` (1 day), `THRESH_LONG` (7 days), `HIGH_COMPLEXITY` (4), `CENTER_LON` (45°).
 
 ---
 
@@ -472,3 +479,20 @@ The script reads its configuration from these constants (no CLI arguments). To u
 - **Independent CME breakdowns.** Width and speed categories each cover all CMEs; `count_cmes_filtered` combines a speed and a width condition. Do not sum width or speed categories expecting them to equal `count_cmes_filtered`. Note also that `count_cmes_filtered` overlaps the speed classes (it contains moderate, fast and extreme events).
 
 ---
+
+## Known issues and pending changes
+
+| # | Issue | Status |
+|---|---|---|
+| 1 | SOHO/LASCO interruptions (1998-07/08/09, 1999-01; partial 1998-10) counted as months with 0 CMEs | Detected by `Lecture.py`; integration in `master_dataset_builder.py` pending |
+| 2 | Previous `Lecture.py` truncated remarks to the first word and dropped values flagged with `*` | **Fixed** in the current `Lecture.py`; committed `datos_procesados_2026_02_28.csv` still produced with the old version |
+| 3 | 64 % of CDAW events are flagged Poor / Very Poor, concentrated in narrow and slow CMEs | Flag available (`quality`); analyses to be repeated without them |
+| 4 | Monthly AR counts are region-months (7 719), not unique regions (6 422), for 1996-01 → 2026-02 | Documented; both counts to be reported in the paper |
+| 5 | βδ placed below βγ in the ordinal scale; `n_high_complexity` excludes βδ | `is_delta` flag added in `noaa_mount_wilson.py`; δ-region area to be added in the AR features |
+| 6 | Persistence measures disk visibility, not region lifetime; `ephemeral` differs from the physical term | **Renamed** to short-/mid-/long-lived in `ar_features_builder.py` |
+| 7 | McIntosh letters in mixed case across years | **Fixed** in `noaa_mount_wilson.py` (normalised `z_class` and components) |
+| 8 | Committed `master_monthly.csv` uses `n_alta_complejidad`; current `ar_features_builder.py` writes `n_high_complexity` | Will be resolved when the master dataset is regenerated |
+| 9 | SRS report date stored as observation date (one day late) | **Fixed** in `noaa_mount_wilson.py` (`date` = observation date, `report_date` kept) |
+| 10 | Days without spotted regions indistinguishable from missing reports | **Fixed**: `srs_day_status.csv` |
+| 11 | NOAA numbers truncated to 4 digits | **Fixed**: `noaa_full` |
+| 12 | `ar_features_builder.py` grouped regions by `noaa_number`, had no δ or area features and treated missing days as zeros | **Fixed** in the current `ar_features_builder.py` |
