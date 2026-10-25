@@ -2,7 +2,7 @@
 
 This folder holds the data and processing scripts of the CME monthly occurrence project. Each phenomenon has its own folder with its scripts, inputs, outputs and README; the `master/` folder joins them into the monthly dataset used by the statistical analysis.
 
-> **Status (2026-10-24).** CME, active-region and flare inputs have been reprocessed with corrected scripts (CDAW catalog downloaded 2026-07-31, SRS reports to 2026-07-31, SWPC flare list to 2026-07). `flares/flares_builder.py` and the rewrite of `master/master_dataset_builder.py` are in preparation; until then the committed `master/master_monthly.csv` is the previous version. See [Known issues](#known-issues-and-pending-changes).
+> **Status (2026-10-24).** CME, active-region and flare inputs have been reprocessed with corrected scripts (CDAW catalog downloaded 2026-07-31, SRS reports to 2026-07-31, SWPC flare list to 2026-07, processed by `flares/flares_builder.py`). The rewrite of `master/master_dataset_builder.py` is in preparation; until then the committed `master/master_monthly.csv` is the previous version. See [Known issues](#known-issues-and-pending-changes).
 
 ## Folder structure
 
@@ -20,8 +20,8 @@ Data/
 |---|---|---|---|---|
 | `cme/` | Coronal mass ejections | [SOHO/LASCO CDAW catalog](https://cdaw.gsfc.nasa.gov/CME_list/) | `datos_procesados_TAG.csv`, `lasco_gaps_TAG.csv`, `lasco_monthly_coverage_TAG.csv` | [cme/README.md](cme/README.md) |
 | `active_regions/` | Sunspot groups / active regions | [NOAA Solar Region Summaries](https://www.ngdc.noaa.gov/stp/space-weather/swpc-products/daily_reports/solar_region_summaries/) | `mount_wilson_dataset.csv`, `srs_day_status.csv`, `ar_features_{annual,monthly,weekly}.csv` | [active_regions/README.md](active_regions/README.md) |
-| `flares/` | Solar flares | NOAA/SWPC GOES flare list via the [HEK](https://www.lmsal.com/hek/); Plutino et al. (2023) | `raw/flares_swpc_hek_raw.csv`; `flares_monthly.csv` (in preparation) | [flares/README.md](flares/README.md) |
-| `sunspot_number/` | Solar-cycle reference | [SILSO](https://www.sidc.be/silso/) | `SN_m_tot_V2.0.txt` | [sunspot_number/README.md](sunspot_number/README.md) |
+| `flares/` | Solar flares | NOAA/SWPC GOES flare list via the [HEK](https://www.lmsal.com/hek/); Plutino et al. (2023) | `flare_events.csv`, `flares_monthly.csv` | [flares/README.md](flares/README.md) |
+| `sunspot_number/` | Solar-cycle reference | [SILSO](https://www.sidc.be/silso/) | `SN_m_tot_V2.0.csv` | [sunspot_number/README.md](sunspot_number/README.md) |
 | `master/` | All of the above, monthly | outputs of the other folders | `master_monthly.csv` | [master/README.md](master/README.md) |
 
 ## Pipeline
@@ -39,7 +39,7 @@ flowchart TD
     end
     subgraph FL["flares/"]
         F0["download_flares_hek.py"] --> F1["raw/flares_swpc_hek_raw.csv"]
-        F1 -.-> F2["flares_builder.py<br/>(in preparation)"] -.-> F3["flares_monthly.csv"]
+        F1 --> F2["flares_builder.py"] --> F3["flares_monthly.csv<br/>flare_events.csv"]
     end
     subgraph SN["sunspot_number/"]
         S0["SN_m_tot_V2.0.txt"]
@@ -50,10 +50,10 @@ flowchart TD
     C2 --> M0
     C3 --> M0
     A3 --> M0
-    F3 -.-> M0
+    F3 --> M0
     S0 --> M0
-    A1 -.-> F2
-    C2 -.-> F2
+    A1 --> F2
+    C2 --> F2
     M1 --> NEXT["Statistical analysis<br/>(../Correlation analysis/)"]
 ```
 
@@ -69,10 +69,11 @@ python Data/cme/Lecture.py --input Data/cme/raw/Soho_Lasco_2026_07_31.txt --tag 
 python Data/active_regions/noaa_mount_wilson.py --start 1996-01-01 --end 2026-08-01
 python Data/active_regions/ar_features_builder.py --start 1996-01 --end 2026-07
 
-# Flares (requires: pip install "sunpy[net]")
+# Flares (download requires: pip install "sunpy[net]")
 python Data/flares/download_flares_hek.py --start 1996-01 --end 2026-07
+python Data/flares/flares_builder.py --cme-tag 2026_07_31 --start 1996-01 --end 2026-07
 
-# Sunspot number: download SN_m_tot_V2.0.txt from SILSO into Data/sunspot_number/
+# Sunspot number: download SN_m_tot_V2.0.csv from SILSO into Data/sunspot_number/
 
 # Master dataset (after its rewrite)
 python Data/master/master_dataset_builder.py
@@ -98,9 +99,9 @@ Requirements: Python ≥ 3.8, `numpy`, `pandas`, `requests`; `tqdm` (optional); 
 | 1 | SOHO/LASCO interruptions (1998-07/08/09, 1999-01; partial 1998-10) counted as months with 0 CMEs in the committed `master_monthly.csv` | Detected by `cme/Lecture.py`; integration in the master rewrite |
 | 2 | 64 % of CDAW events flagged Poor / Very Poor, concentrated in narrow and slow CMEs | `quality` flag available; analyses to be repeated without them |
 | 3 | βδ placed below βγ in the ordinal complexity scale | `is_delta` and δ-area features added; scale decision pending |
-| 4 | GOES scale change (GOES-16, ~2020) and 169 duplicated events in the SWPC flare list | To be handled in `flares/flares_builder.py` |
-| 5 | Flares not yet in the master dataset | `flares/flares_builder.py` and master rewrite in preparation |
+| 4 | NOAA region missing for most M/X flares of 1997–2001 and 2022–2023 in the HEK copy of the SWPC list | Region-based flare features biased low in those years; to be filled from NOAA/NCEI GOES reports and NASA DONKI |
+| 5 | Flares not yet in the master dataset | `flares/flares_monthly.csv` ready; master rewrite in preparation |
 | 6 | Committed `master/master_monthly.csv` built from the previous inputs and column names | Regenerated after the master rewrite |
 | 7 | `../Correlation analysis/` scripts use the previous column names (`n_total`, `n_large`, `n_alta_complejidad`, …) | To be updated in the pipeline refactor |
 
-Resolved in the current scripts: truncated CDAW remarks and dropped `*` values; SRS report date used as observation date; days without spotted regions indistinguishable from missing reports; NOAA numbers truncated to 4 digits; mixed-case McIntosh classes; active regions grouped by truncated numbers; missing SRS days counted as zeros; "ephemeral" persistence class renamed. Details in each folder's README.
+Resolved in the current scripts: GOES scale change (dated 2020-03 in the data) and duplicated events in the SWPC flare list; truncated CDAW remarks and dropped `*` values; SRS report date used as observation date; days without spotted regions indistinguishable from missing reports; NOAA numbers truncated to 4 digits; mixed-case McIntosh classes; active regions grouped by truncated numbers; missing SRS days counted as zeros; "ephemeral" persistence class renamed. Details in each folder's README.

@@ -7,7 +7,9 @@ This folder holds the solar flare catalogues and the scripts that download and p
 | Path | Type | Description |
 |---|---|---|
 | `download_flares_hek.py` | script | Downloads the NOAA/SWPC GOES flare list from the HEK (SunPy), one month per query |
-| `flares_builder.py` | script (in preparation) | Scale homogenisation, de-duplication, region and CME association, monthly aggregation |
+| `flares_builder.py` | script | Cleaning, de-duplication, GOES scale homogenisation, source-region and CME association, monthly aggregation |
+| `flare_events.csv` | output | One row per flare (56 085 flares, 1996-01 → 2026-07) |
+| `flares_monthly.csv` | output | Monthly flare features for the master dataset (367 months) |
 | `raw/flares_swpc_hek_raw.csv` | raw input | SWPC flare list, 1996-01 → 2026-07 (downloaded 2026-10-24) |
 | `raw/hek_download_status.csv` | raw input | Status of each monthly HEK query |
 | `raw/FlareList_1986-2002.csv`, `raw/FlareList_2003-2020.csv` | raw input (optional) | Catalogue of Plutino et al. (2023) |
@@ -21,7 +23,10 @@ cd Data/flares
 pip install "sunpy[net]"
 python download_flares_hek.py --start 1996-01 --end 2026-07          # writes raw/flares_swpc_hek_raw.csv
 python download_flares_hek.py --start 1996-01 --end 2026-07 --retry-empty   # re-query empty months
+python flares_builder.py --cme-tag 2026_07_31 --start 1996-01 --end 2026-07
 ```
+
+`flares_builder.py` also reads `../active_regions/mount_wilson_dataset.csv` and `../cme/datos_procesados_TAG.csv`, `../cme/lasco_gaps_TAG.csv`.
 
 The download can be interrupted and resumed: months already in `hek_cache/` with status `ok` are not queried again.
 
@@ -32,7 +37,7 @@ The download can be interrupted and resumed: months already in `hek_cache/` with
 | NOAA/SWPC GOES flare list, via the HEK | 1996-01 → 2026-07 | 56 270 | Yes (57.1 % of all events, 70.2 % of M/X) | When a region is assigned | **Primary source** | `raw/flares_swpc_hek_raw.csv`, `raw/hek_download_status.csv` |
 | Plutino et al. (2023) | 1986-01 → 2020-12 | 334 123 (212 598 from 1996) | No | No | Robustness check (homogeneous algorithmic detection, background flux) | `raw/FlareList_1986-2002.csv`, `raw/FlareList_2003-2020.csv` |
 
-Both catalogues are **raw inputs**: they are stored in `raw/` as downloaded. Cleaning, scale homogenisation, region and CME association, and monthly aggregation are done by `flares_builder.py` (in preparation).
+Both catalogues are **raw inputs**: they are stored in `raw/` as downloaded. Cleaning, scale homogenisation, region and CME association, and monthly aggregation are done by `flares_builder.py` ([below](#flares_builderpy)).
 
 ---
 
@@ -87,12 +92,13 @@ Columns not returned by the HEK for a given month are absent from that month's c
 
 #### Known issues
 
-1. **GOES flux scale.** <a name="goes-flux-scale"></a> Classes from GOES-15 and earlier include the historical SWPC scaling factor of 0.7 ("classic" scale). Classes from GOES-16 onward are on the true-flux scale, about 1/0.7 ≈ 1.43 times larger for the same flare. The HEK does not identify the satellite, so the date of the change has to be checked against NOAA documentation and verified in the data (jump in the M/X-to-C ratio and in M/X flares per unit spot area around 2020; comparison with Plutino et al. over 2017–2020). `flares_builder.py` will convert all classes to the classic scale and keep the true-scale flux in a separate column.
-2. **Duplicates.** 169 pairs share peak time and class (the same flare listed twice). They will be removed after checking whether they differ in region or position.
-3. **Flares without a region.** About 30 % of M/X flares have no NOAA region, mostly near or behind the limb. They are kept, flagged, and their monthly fraction is reported.
-4. **Region numbers.** `ar_noaanum` may use 4 digits (modulo 10 000, as in the SRS) or 5 digits; it will be normalised to the full NOAA number (`noaa_full`) before matching with `../active_regions/mount_wilson_dataset.csv`.
-5. **C-class completeness.** Weak C flares are missed when the X-ray background is high (solar maximum). The main analysis uses M and X flares; C counts are kept for robustness tests only.
-6. **Data gaps.** GOES observing gaps are not flagged by the HEK; months with unusually low counts relative to spot activity will be checked, as was done for LASCO.
+1. **GOES flux scale.** <a name="goes-flux-scale"></a> Classes from GOES-15 and earlier include the historical SWPC scaling factor of 0.7 ("classic" scale). Classes from GOES-16 onward are on the true-flux scale, about 1/0.7 ≈ 1.43 times larger for the same flare. The HEK does not identify the satellite, so the date of the change has to be checked against NOAA documentation and verified in the data (jump in the M/X-to-C ratio and in M/X flares per unit spot area around 2020; comparison with Plutino et al. over 2017–2020). **Dated in the data:** the ratio of SWPC class flux to the Plutino et al. true-scale peak is 0.707 until 2020-01 and ~1.0 from 2020-03-11 onward, so `flares_builder.py` rescales classes from 2020-03-01 by 0.7 (no M or X flare occurred between those dates). All classes and counts use the classic scale; the true-scale flux is kept in `flux_true`.
+2. **Duplicates.** The HEK holds two ingestions of the SWPC list (`kb_archivid` contains `FL_SECstandard_` for 1996–2014 and `FL_SWPC_` mostly from 2013); 150 rows repeat the start and peak time of another row (22 of these groups differ in class). `flares_builder.py` keeps one row per flare (valid class, NOAA region, real position and newer ingestion preferred).
+3. **Flares without a region.** 30 % of M/X flares have no NOAA region (`ar_noaanum = 0`). The fraction is not uniform: about 65–80 % in 1997–2001 and 85–90 % in 2022–2023, below 10 % in most other years. This is a gap of the HEK copy of the SWPC list, not only limb flares. Region-based monthly features (`n_MX_delta`, `frac_MX_delta`, …) are therefore biased low in those years; flare counts and flare index are not affected. Filling the regions from the NOAA/NCEI GOES XRS reports (1996–2017) and NASA DONKI (2010–present) is planned.
+4. **Region numbers and positions.** `ar_noaanum` is already the full 5-digit NOAA number. Heliographic position (0, 0) is a placeholder for "unknown" (72 % of all rows, 61 % of M/X flares); `flares_builder.py` sets it to NaN and uses the position of the source region in the SRS when available (70 % of M/X flares have a position after that).
+5. **Invalid classes.** 35 rows have no usable class (missing, `C` without a number, or `SF` = optical subflare) and are dropped. Large flares are written with a trailing dot (`X17.`, `X28.`) and are parsed correctly.
+6. **C-class completeness.** Weak C flares are missed when the X-ray background is high (solar maximum). The main analysis uses M and X flares; C counts are kept for robustness tests only.
+7. **Data gaps.** GOES observing gaps are not flagged by the HEK; months with unusually low counts relative to spot activity will be checked, as was done for LASCO.
 
 ---
 
@@ -124,6 +130,67 @@ Columns not returned by the HEK for a given month are absent from that month's c
 - Used in the preliminary flare analysis (1996–2020).
 
 ---
+
+## `flares_builder.py`
+
+Cleans the SWPC list and builds the flare table and the monthly flare features.
+
+**Processing steps**
+
+1. **Classes.** `fl_goescls` is parsed into a peak flux (A, B, C, M, X × number; trailing dots accepted). Rows without a valid class are dropped.
+2. **Duplicates.** Rows with the same start and peak time are one flare; the kept row has a valid class, a NOAA region, a real position and the newer ingestion, in that order of preference.
+3. **GOES scale.** Classes published from `SCALE_CHANGE` = 2020-03-01 (true-flux scale) are multiplied by 0.7, so that `flux_classic` and `class_classic` are homogeneous over 1996–2026. 17 469 flares were rescaled; the class letter changed for 2 942 of them.
+4. **Positions.** Placeholder positions (0, 0) are set to NaN.
+5. **Source region.** Flares with a NOAA number are matched to the SRS record of that region on the flare day or within ±2 days (nearest day; same day for 93 % of matches). The flare inherits the region's area, Mount Wilson type, complexity, δ flag, McIntosh class, position and persistence. `region_status`: `matched`, `no_region`, `region_not_in_srs`.
+6. **CME association.** A flare is eruptive at width threshold W (30°, 60°, 120°) if a CME with width ≥ W first appears in LASCO C2 within [t_start − 30 min, t_start + 120 min]. The chance probability is estimated by shifting the flare time by ±1…±5 days. The CME recorded for the flare is the widest in the window (ties: the fastest). Flares inside a LASCO observing gap get NaN.
+7. **Monthly features**, by month of the flare peak.
+
+**Reference values (run of 2026-10-24)**
+
+| Quantity | Value |
+|---|---|
+| Flares kept | 56 085 (A 482, B 19 753, C 32 277, M 3 339, X 234; classic scale) |
+| Source region, M/X flares | matched 2 499, no region 1 064, region not in SRS 10 |
+| Flares inside LASCO gaps | 2 054 |
+| Chance-corrected eruptive fraction (W ≥ 60°) | C 4 %, M1–M2 21 %, M2–M5 36 %, M5–X1 60 %, ≥ X1 77 % |
+
+The eruptive fraction rising steeply with flare class reproduces the known behaviour (e.g. Yashiro et al. 2005) and validates the temporal association. Spot checks: the X17 (2003-10-28), X10 (2003-10-29) and X28 (2003-11-04) flares of region 10486 are associated with full-halo CMEs of 2459, 2029 and 2657 km/s.
+
+**Columns of `flare_events.csv`**
+
+| Column | Description |
+|---|---|
+| `t_start`, `t_peak`, `t_end` | Flare times (UT) |
+| `fl_goescls`, `scale_published`, `flux_published` | Class as published, its scale (`classic` / `true`) and flux (W m⁻²) |
+| `flux_classic`, `class_classic`, `flux_true` | Homogenised flux and class (classic scale), and true-scale flux |
+| `noaa_full`, `region_status` | NOAA region and match status |
+| `flare_lat`, `flare_lon` | Flare position from the list (NaN if placeholder) |
+| `lon_best` | `flare_lon`, else the longitude of the source region |
+| `ar_day_offset` | Flare day − SRS observation day of the matched record |
+| `ar_area`, `ar_mag_type`, `ar_complexity`, `ar_is_delta`, `ar_z_class`, `ar_lat`, `ar_lon`, `ar_persistence_days` | Properties of the source region |
+| `in_lasco_gap` | Flare start inside a LASCO observing gap |
+| `eruptive_w30`, `eruptive_w60`, `eruptive_w120` | 1 if a CME with width ≥ W appears in the window, 0 if not, NaN in LASCO gaps |
+| `chance_w30`, `chance_w60`, `chance_w120` | Probability of a chance CME in the window |
+| `cme_t`, `cme_speed`, `cme_width`, `cme_quality` | Widest CME (width ≥ 30°) in the window |
+| `stream`, `kb_archivid` | HEK ingestion and identifier |
+
+**Columns of `flares_monthly.csv`**
+
+| Column | Description |
+|---|---|
+| `yearmonth` | Month (YYYY-MM) |
+| `n_flares_C`, `n_flares_M`, `n_flares_X`, `n_flares_MX` | Flare counts by class (classic scale) |
+| `flare_index`, `flare_index_MX` | Σ peak flux of flares ≥ C1 / of M and X flares, in units of C1 (10⁻⁶ W m⁻²) |
+| `max_flux_classic` | Largest flare of the month (W m⁻², classic scale) |
+| `n_MX_matched_region`, `n_MX_no_region`, `frac_MX_no_region` | M/X flares with and without a source region |
+| `n_MX_delta`, `frac_MX_delta` | M/X flares from δ regions, and their fraction among matched flares |
+| `n_MX_high_complexity` | M/X flares from regions with complexity ≥ 4 |
+| `n_flaring_regions_MX` | Regions producing at least one M/X flare |
+| `n_MX_limb` | M/X flares at \|lon_best\| > 45° |
+| `n_MX_eruptive_wW`, `n_MX_chance_wW`, `n_MX_assessed_wW` | M/X flares with a CME (width ≥ W), expected chance coincidences, and flares assessed (outside LASCO gaps), for W = 30, 60, 120 |
+| `scale_published` | Scale of the published classes that month |
+
+Region-based columns are biased low in 1997–2001 and 2022–2023 (see Known issues, item 3).
 
 ## Checksums
 
