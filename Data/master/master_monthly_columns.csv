@@ -1,0 +1,104 @@
+column,source,unit,description
+yearmonth,—,YYYY-MM,Calendar month
+sunspot_number,sunspot_number,—,SILSO monthly mean total sunspot number (v2.0)
+sn13,sunspot_number,—,13-month smoothed sunspot number (SILSO formula)
+solar_cycle,sunspot_number,—,Solar cycle number (boundaries at the SN13 minima)
+phase_sn13,sunspot_number,—,rising / maximum / declining; maximum = SN13 ≥ 0.8 × cycle maximum
+phase_repo,sunspot_number,—,"rising / maximum / declining, hand-set limits of the previous analysis"
+sunspot_number_sd,sunspot_number,—,Standard deviation of the daily input values
+sunspot_provisional,sunspot_number,—,True if SILSO marks the month as provisional
+count_cmes_all,cme,CMEs per month,All CMEs — monthly count; NaN if coverage < 0.5
+count_cmes_all_hq,cme,CMEs per month,"All CMEs, normal CDAW quality only — monthly count; NaN if coverage < 0.5"
+count_cmes_narrow,cme,CMEs per month,Width < 20° — monthly count; NaN if coverage < 0.5
+count_cmes_narrow_hq,cme,CMEs per month,"Width < 20°, normal CDAW quality only — monthly count; NaN if coverage < 0.5"
+count_cmes_normal,cme,CMEs per month,Width 20°–120° — monthly count; NaN if coverage < 0.5
+count_cmes_normal_hq,cme,CMEs per month,"Width 20°–120°, normal CDAW quality only — monthly count; NaN if coverage < 0.5"
+count_cmes_partial_halo,cme,CMEs per month,Width > 120° and < 360° — monthly count; NaN if coverage < 0.5
+count_cmes_partial_halo_hq,cme,CMEs per month,"Width > 120° and < 360°, normal CDAW quality only — monthly count; NaN if coverage < 0.5"
+count_cmes_halo,cme,CMEs per month,Width = 360° (full halo) — monthly count; NaN if coverage < 0.5
+count_cmes_halo_hq,cme,CMEs per month,"Width = 360° (full halo), normal CDAW quality only — monthly count; NaN if coverage < 0.5"
+count_cmes_slow,cme,CMEs per month,Linear speed 0–600 km/s — monthly count; NaN if coverage < 0.5
+count_cmes_slow_hq,cme,CMEs per month,"Linear speed 0–600 km/s, normal CDAW quality only — monthly count; NaN if coverage < 0.5"
+count_cmes_moderate,cme,CMEs per month,Linear speed 600–1000 km/s — monthly count; NaN if coverage < 0.5
+count_cmes_moderate_hq,cme,CMEs per month,"Linear speed 600–1000 km/s, normal CDAW quality only — monthly count; NaN if coverage < 0.5"
+count_cmes_fast,cme,CMEs per month,Linear speed 1000–1500 km/s — monthly count; NaN if coverage < 0.5
+count_cmes_fast_hq,cme,CMEs per month,"Linear speed 1000–1500 km/s, normal CDAW quality only — monthly count; NaN if coverage < 0.5"
+count_cmes_extreme,cme,CMEs per month,Linear speed ≥ 1500 km/s — monthly count; NaN if coverage < 0.5
+count_cmes_extreme_hq,cme,CMEs per month,"Linear speed ≥ 1500 km/s, normal CDAW quality only — monthly count; NaN if coverage < 0.5"
+count_cmes_filtered,cme,CMEs per month,Speed ≥ 750 km/s and width 120°–360° — monthly count; NaN if coverage < 0.5
+count_cmes_filtered_hq,cme,CMEs per month,"Speed ≥ 750 km/s and width 120°–360°, normal CDAW quality only — monthly count; NaN if coverage < 0.5"
+lasco_coverage,cme,fraction,LASCO observing coverage of the month
+lasco_gap_days,cme,days,Days of the month in LASCO observing gaps
+count_cmes_all_norm,cme,CMEs per month,All CMEs — divided by LASCO coverage; NaN if coverage < 0.5
+count_cmes_all_hq_norm,cme,CMEs per month,"All CMEs, normal CDAW quality only — divided by LASCO coverage; NaN if coverage < 0.5"
+count_cmes_narrow_norm,cme,CMEs per month,Width < 20° — divided by LASCO coverage; NaN if coverage < 0.5
+count_cmes_narrow_hq_norm,cme,CMEs per month,"Width < 20°, normal CDAW quality only — divided by LASCO coverage; NaN if coverage < 0.5"
+count_cmes_normal_norm,cme,CMEs per month,Width 20°–120° — divided by LASCO coverage; NaN if coverage < 0.5
+count_cmes_normal_hq_norm,cme,CMEs per month,"Width 20°–120°, normal CDAW quality only — divided by LASCO coverage; NaN if coverage < 0.5"
+count_cmes_partial_halo_norm,cme,CMEs per month,Width > 120° and < 360° — divided by LASCO coverage; NaN if coverage < 0.5
+count_cmes_partial_halo_hq_norm,cme,CMEs per month,"Width > 120° and < 360°, normal CDAW quality only — divided by LASCO coverage; NaN if coverage < 0.5"
+count_cmes_halo_norm,cme,CMEs per month,Width = 360° (full halo) — divided by LASCO coverage; NaN if coverage < 0.5
+count_cmes_halo_hq_norm,cme,CMEs per month,"Width = 360° (full halo), normal CDAW quality only — divided by LASCO coverage; NaN if coverage < 0.5"
+count_cmes_slow_norm,cme,CMEs per month,Linear speed 0–600 km/s — divided by LASCO coverage; NaN if coverage < 0.5
+count_cmes_slow_hq_norm,cme,CMEs per month,"Linear speed 0–600 km/s, normal CDAW quality only — divided by LASCO coverage; NaN if coverage < 0.5"
+count_cmes_moderate_norm,cme,CMEs per month,Linear speed 600–1000 km/s — divided by LASCO coverage; NaN if coverage < 0.5
+count_cmes_moderate_hq_norm,cme,CMEs per month,"Linear speed 600–1000 km/s, normal CDAW quality only — divided by LASCO coverage; NaN if coverage < 0.5"
+count_cmes_fast_norm,cme,CMEs per month,Linear speed 1000–1500 km/s — divided by LASCO coverage; NaN if coverage < 0.5
+count_cmes_fast_hq_norm,cme,CMEs per month,"Linear speed 1000–1500 km/s, normal CDAW quality only — divided by LASCO coverage; NaN if coverage < 0.5"
+count_cmes_extreme_norm,cme,CMEs per month,Linear speed ≥ 1500 km/s — divided by LASCO coverage; NaN if coverage < 0.5
+count_cmes_extreme_hq_norm,cme,CMEs per month,"Linear speed ≥ 1500 km/s, normal CDAW quality only — divided by LASCO coverage; NaN if coverage < 0.5"
+count_cmes_filtered_norm,cme,CMEs per month,Speed ≥ 750 km/s and width 120°–360° — divided by LASCO coverage; NaN if coverage < 0.5
+count_cmes_filtered_hq_norm,cme,CMEs per month,"Speed ≥ 750 km/s and width 120°–360°, normal CDAW quality only — divided by LASCO coverage; NaN if coverage < 0.5"
+srs_usable_days,active_regions,days,SRS reports usable in the month (parsed or 'None')
+n_days,active_regions,days,Calendar days in the month
+n_regions,active_regions,regions,Active regions observed in the month (region-months)
+n_new_regions,active_regions,regions,Regions first observed in the month (unique regions)
+n_high_complexity,active_regions,regions,"Regions with peak Mount Wilson complexity ≥ 4 (βγ, γ, γδ, βγδ)"
+n_delta,active_regions,regions,Regions with a δ configuration in the month
+n_long_lived,active_regions,regions,Regions visible ≥ 7 days
+n_mid_lived,active_regions,regions,Regions visible 2–6 days
+n_short_lived,active_regions,regions,Regions visible ≤ 1 day
+area_sum,active_regions,µHem × days,Σ daily spot area
+area_delta,active_regions,µHem × days,Σ daily area of δ regions
+area_complex,active_regions,µHem × days,Σ daily area of regions with complexity ≥ 4
+complexity_area_sum,active_regions,µHem × days,Φ_proxy = Σ daily complexity × area
+area_center,active_regions,µHem × days,Σ daily area at |central-meridian distance| ≤ 45°
+area_limb,active_regions,µHem × days,Σ daily area at |central-meridian distance| > 45°
+srs_coverage,active_regions,fraction,srs_usable_days / n_days
+area_sum_daily_mean,active_regions,µHem,Mean daily spot area (area_sum / srs_usable_days)
+area_delta_daily_mean,active_regions,µHem,Mean daily area of δ regions
+area_complex_daily_mean,active_regions,µHem,Mean daily area of regions with complexity ≥ 4
+complexity_area_sum_daily_mean,active_regions,µHem,Mean daily Φ_proxy
+area_center_daily_mean,active_regions,µHem,Mean daily area at |lon| ≤ 45°
+area_limb_daily_mean,active_regions,µHem,Mean daily area at |lon| > 45°
+frac_delta_area,active_regions,fraction,area_delta / area_sum
+n_flares_C,flares,flares,C-class flares (classic GOES scale)
+n_flares_M,flares,flares,M-class flares (classic GOES scale)
+n_flares_X,flares,flares,X-class flares (classic GOES scale)
+n_flares_MX,flares,flares,M- and X-class flares
+flare_index,flares,C1 units,Σ peak flux of flares ≥ C1 / 1e-6 W m⁻²
+flare_index_MX,flares,C1 units,Σ peak flux of M and X flares / 1e-6 W m⁻²
+max_flux_classic,flares,W m⁻²,Peak flux of the largest flare (classic scale)
+n_MX_matched_region,flares,flares,M/X flares matched to an SRS region
+n_MX_no_region,flares,flares,M/X flares without NOAA region in the SWPC list
+n_MX_delta,flares,flares,M/X flares from δ regions
+n_MX_high_complexity,flares,flares,M/X flares from regions with complexity ≥ 4
+n_flaring_regions_MX,flares,regions,Regions producing at least one M/X flare
+n_MX_limb,flares,flares,M/X flares at |lon| > 45°
+n_MX_eruptive_w30,flares,flares,"M/X flares with a CME of width ≥ W° in [t_start − 30 min, + 120 min]"
+n_MX_chance_w30,flares,flares,Expected chance flare–CME coincidences (width ≥ W°)
+n_MX_assessed_w30,flares,flares,M/X flares outside LASCO gaps (assessed for a CME)
+n_MX_eruptive_w60,flares,flares,"M/X flares with a CME of width ≥ W° in [t_start − 30 min, + 120 min]"
+n_MX_chance_w60,flares,flares,Expected chance flare–CME coincidences (width ≥ W°)
+n_MX_assessed_w60,flares,flares,M/X flares outside LASCO gaps (assessed for a CME)
+n_MX_eruptive_w120,flares,flares,"M/X flares with a CME of width ≥ W° in [t_start − 30 min, + 120 min]"
+n_MX_chance_w120,flares,flares,Expected chance flare–CME coincidences (width ≥ W°)
+n_MX_assessed_w120,flares,flares,M/X flares outside LASCO gaps (assessed for a CME)
+frac_MX_delta,flares,fraction,n_MX_delta / n_MX_matched_region
+frac_MX_no_region,flares,fraction,n_MX_no_region / n_flares_MX
+goes_scale_published,flares,—,Scale of the published GOES classes (classic / true); all counts use the classic scale
+flag_no_lasco,master,bool,LASCO coverage < 0.5: CME counts set to NaN
+flag_partial_lasco,master,bool,LASCO coverage between 0.5 and 1: use *_norm counts
+flag_srs_incomplete,master,bool,SRS coverage < 0.9 (missing daily reports); use *_daily_mean area features
+flag_sunspot_provisional,master,bool,SILSO value provisional
+flag_flare_region_gap,master,bool,More than half of the month's M/X flares have no NOAA region in the SWPC list

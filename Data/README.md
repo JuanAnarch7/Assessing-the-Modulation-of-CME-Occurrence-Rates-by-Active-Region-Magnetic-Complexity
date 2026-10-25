@@ -2,7 +2,7 @@
 
 This folder holds the data and processing scripts of the CME monthly occurrence project. Each phenomenon has its own folder with its scripts, inputs, outputs and README; the `master/` folder joins them into the monthly dataset used by the statistical analysis.
 
-> **Status (2026-10-24).** CME, active-region and flare inputs have been reprocessed with corrected scripts (CDAW catalog downloaded 2026-07-31, SRS reports to 2026-07-31, SWPC flare list to 2026-07, processed by `flares/flares_builder.py`). The rewrite of `master/master_dataset_builder.py` is in preparation; until then the committed `master/master_monthly.csv` is the previous version. See [Known issues](#known-issues-and-pending-changes).
+> **Status (2026-10-24).** CME, active-region and flare inputs have been reprocessed with corrected scripts (CDAW catalog downloaded 2026-07-31, SRS reports to 2026-07-31, SWPC flare list to 2026-07, processed by `flares/flares_builder.py`). All sources are joined by the new `master/master_dataset_builder.py` into `master/master_monthly.csv` (1996-01 → 2026-07, 367 months, 103 columns, with a data dictionary). See [Known issues](#known-issues-and-pending-changes).
 
 ## Folder structure
 
@@ -22,7 +22,7 @@ Data/
 | `active_regions/` | Sunspot groups / active regions | [NOAA Solar Region Summaries](https://www.ngdc.noaa.gov/stp/space-weather/swpc-products/daily_reports/solar_region_summaries/) | `mount_wilson_dataset.csv`, `srs_day_status.csv`, `ar_features_{annual,monthly,weekly}.csv` | [active_regions/README.md](active_regions/README.md) |
 | `flares/` | Solar flares | NOAA/SWPC GOES flare list via the [HEK](https://www.lmsal.com/hek/); Plutino et al. (2023) | `flare_events.csv`, `flares_monthly.csv` | [flares/README.md](flares/README.md) |
 | `sunspot_number/` | Solar-cycle reference | [SILSO](https://www.sidc.be/silso/) | `SN_m_tot_V2.0.csv` | [sunspot_number/README.md](sunspot_number/README.md) |
-| `master/` | All of the above, monthly | outputs of the other folders | `master_monthly.csv` | [master/README.md](master/README.md) |
+| `master/` | All of the above, monthly | outputs of the other folders | `master_monthly.csv`, `master_monthly_columns.csv` | [master/README.md](master/README.md) |
 
 ## Pipeline
 
@@ -45,7 +45,7 @@ flowchart TD
         S0["SN_m_tot_V2.0.txt"]
     end
     subgraph MS["master/"]
-        M0["master_dataset_builder.py<br/>(rewrite in preparation)"] --> M1["master_monthly.csv"]
+        M0["master_dataset_builder.py"] --> M1["master_monthly.csv<br/>master_monthly_columns.csv"]
     end
     C2 --> M0
     C3 --> M0
@@ -75,7 +75,7 @@ python Data/flares/flares_builder.py --cme-tag 2026_07_31 --start 1996-01 --end 
 
 # Sunspot number: download SN_m_tot_V2.0.csv from SILSO into Data/sunspot_number/
 
-# Master dataset (after its rewrite)
+# Master dataset (last month = last month covered by all sources)
 python Data/master/master_dataset_builder.py
 ```
 
@@ -96,12 +96,12 @@ Requirements: Python ≥ 3.8, `numpy`, `pandas`, `requests`; `tqdm` (optional); 
 
 | # | Issue | Status |
 |---|---|---|
-| 1 | SOHO/LASCO interruptions (1998-07/08/09, 1999-01; partial 1998-10) counted as months with 0 CMEs in the committed `master_monthly.csv` | Detected by `cme/Lecture.py`; integration in the master rewrite |
+| 1 | 37 months only partially observed by LASCO | `lasco_coverage` and `*_norm` counts in the master; count models should use a coverage offset |
 | 2 | 64 % of CDAW events flagged Poor / Very Poor, concentrated in narrow and slow CMEs | `quality` flag available; analyses to be repeated without them |
 | 3 | βδ placed below βγ in the ordinal complexity scale | `is_delta` and δ-area features added; scale decision pending |
 | 4 | NOAA region missing for most M/X flares of 1997–2001 and 2022–2023 in the HEK copy of the SWPC list | Region-based flare features biased low in those years; to be filled from NOAA/NCEI GOES reports and NASA DONKI |
-| 5 | Flares not yet in the master dataset | `flares/flares_monthly.csv` ready; master rewrite in preparation |
-| 6 | Committed `master/master_monthly.csv` built from the previous inputs and column names | Regenerated after the master rewrite |
+| 5 | Cycle 25 still in progress; SILSO value of 2026-07 provisional | `flag_sunspot_provisional`; rebuild when SILSO publishes definitive values |
+| 6 | Active-region columns renamed (`n_total` → `n_regions`, …) | Mapping in `master/README.md` |
 | 7 | `../Correlation analysis/` scripts use the previous column names (`n_total`, `n_large`, `n_alta_complejidad`, …) | To be updated in the pipeline refactor |
 
-Resolved in the current scripts: GOES scale change (dated 2020-03 in the data) and duplicated events in the SWPC flare list; truncated CDAW remarks and dropped `*` values; SRS report date used as observation date; days without spotted regions indistinguishable from missing reports; NOAA numbers truncated to 4 digits; mixed-case McIntosh classes; active regions grouped by truncated numbers; missing SRS days counted as zeros; "ephemeral" persistence class renamed. Details in each folder's README.
+Resolved in the current scripts: months without LASCO observations counted as zero CMEs (now NaN in the master); flares missing from the master; GOES scale change (dated 2020-03 in the data) and duplicated events in the SWPC flare list; truncated CDAW remarks and dropped `*` values; SRS report date used as observation date; days without spotted regions indistinguishable from missing reports; NOAA numbers truncated to 4 digits; mixed-case McIntosh classes; active regions grouped by truncated numbers; missing SRS days counted as zeros; "ephemeral" persistence class renamed. Details in each folder's README.
