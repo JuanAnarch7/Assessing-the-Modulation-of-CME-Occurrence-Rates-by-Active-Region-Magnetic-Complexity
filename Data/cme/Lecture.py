@@ -31,7 +31,7 @@ master_dataset_builder.py (Fecha, Hora, Central, Ancho, Rapidez, ...); new
 columns are in English. They will be unified in the pipeline refactor.
 
 Usage:
-    python Lecture.py --input Soho_Lasco_2026_02_28.txt --tag 2026_02_28
+    python Lecture.py --input raw/Soho_Lasco_2026_07_31.txt --tag 2026_07_31
 =============================================================================
 """
 
@@ -43,6 +43,8 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+
+HERE = Path(__file__).resolve().parent   # scripts read and write in their own folder by default
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -151,7 +153,7 @@ def main():
     ap = argparse.ArgumentParser(description="Read and clean the CDAW CME catalog")
     ap.add_argument("--input", required=True, help="CDAW .txt catalog")
     ap.add_argument("--tag", default="2026_02_28", help="suffix for output files")
-    ap.add_argument("--outdir", default=".")
+    ap.add_argument("--outdir", default=str(HERE), help="output folder (default: this script's folder)")
     a = ap.parse_args()
     out = Path(a.outdir); out.mkdir(parents=True, exist_ok=True)
 

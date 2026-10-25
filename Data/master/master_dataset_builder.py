@@ -42,6 +42,7 @@ CME filtering parameters (adjust as needed):
 
 import csv
 import warnings
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -52,13 +53,15 @@ warnings.filterwarnings("ignore")
 # Configuration
 # ---------------------------------------------------------------------------
 
-# Input files
-CME_FILE     = "datos_procesados_2026_02_28.csv"
-SUNSPOT_FILE = "SN_m_tot_V2.0 (1).txt"
-AR_FILE      = "ar_features_monthly.csv"
+# Input files (paths relative to this script, after the reorganisation of Data/)
+HERE = Path(__file__).resolve().parent
+DATA = HERE.parent
+CME_FILE     = DATA / "cme" / "datos_procesados_2026_07_31.csv"
+SUNSPOT_FILE = DATA / "sunspot_number" / "SN_m_tot_V2.0.txt"
+AR_FILE      = DATA / "active_regions" / "ar_features_monthly.csv"
 
 # Output file
-OUTPUT_FILE  = "master_monthly.csv"
+OUTPUT_FILE  = HERE / "master_monthly.csv"
 
 # Date range (the dataset ends in February 2026)
 YEAR_START = 1996

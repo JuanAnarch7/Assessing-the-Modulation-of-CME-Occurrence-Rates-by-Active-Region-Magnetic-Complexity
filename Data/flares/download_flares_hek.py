@@ -9,9 +9,9 @@ positions. Each month is cached, so the script can be interrupted and resumed;
 months that failed are retried on the next run.
 
 Outputs
-  hek_cache/YYYY-MM.csv          one file per month (raw HEK columns kept)
-  hek_download_status.csv        month, status (ok / empty / error), n_events
-  flares_swpc_hek_raw.csv        all months concatenated (input of flares_builder.py)
+  hek_cache/YYYY-MM.csv              one file per month (raw HEK columns kept; not versioned)
+  raw/hek_download_status.csv        month, status (ok / empty / error), n_events
+  raw/flares_swpc_hek_raw.csv        all months concatenated (input of flares_builder.py)
 
 Requirements: pip install "sunpy[net]" pandas
 
@@ -29,9 +29,10 @@ from pathlib import Path
 
 import pandas as pd
 
-CACHE_DIR = Path("hek_cache")
-STATUS_FILE = Path("hek_download_status.csv")
-OUTPUT_FILE = Path("flares_swpc_hek_raw.csv")
+HERE = Path(__file__).resolve().parent   # scripts read and write in their own folder by default
+CACHE_DIR = HERE / "hek_cache"
+STATUS_FILE = HERE / "raw" / "hek_download_status.csv"
+OUTPUT_FILE = HERE / "raw" / "flares_swpc_hek_raw.csv"
 MAX_RETRIES = 3
 
 # HEK columns we try to keep (absent ones are skipped without error)
@@ -77,6 +78,7 @@ def month_ranges(start: str, end: str) -> list[tuple[str, str, str]]:
 def download(start: str, end: str, retry_empty: bool = False, delay: float = 1.0,
              query=query_month) -> pd.DataFrame:
     CACHE_DIR.mkdir(exist_ok=True)
+    STATUS_FILE.parent.mkdir(exist_ok=True)
     status = (pd.read_csv(STATUS_FILE, dtype=str).set_index("month")
               if STATUS_FILE.exists() else pd.DataFrame(columns=["status", "n_events"]).rename_axis("month"))
     for month, t0, t1 in month_ranges(start, end):

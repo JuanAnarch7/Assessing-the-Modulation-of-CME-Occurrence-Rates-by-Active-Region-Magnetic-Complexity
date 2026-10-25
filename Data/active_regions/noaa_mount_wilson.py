@@ -76,10 +76,11 @@ BASE_URL = (
 START_DATE = date(1996, 1, 1)
 END_DATE = date.today()
 
-CACHE_DIR = Path("srs_cache")
-OUTPUT_CSV = Path("mount_wilson_dataset.csv")
-OUTPUT_SUMMARY = Path("mount_wilson_summary.csv")
-OUTPUT_STATUS = Path("srs_day_status.csv")
+HERE = Path(__file__).resolve().parent   # scripts read and write in their own folder by default
+CACHE_DIR = HERE / "srs_cache"
+OUTPUT_CSV = HERE / "mount_wilson_dataset.csv"
+OUTPUT_SUMMARY = HERE / "mount_wilson_summary.csv"
+OUTPUT_STATUS = HERE / "srs_day_status.csv"
 
 REQUEST_DELAY = 0.3   # seconds between requests (only when downloading)
 MAX_RETRIES = 3       # attempts per file for network errors and HTTP 5xx

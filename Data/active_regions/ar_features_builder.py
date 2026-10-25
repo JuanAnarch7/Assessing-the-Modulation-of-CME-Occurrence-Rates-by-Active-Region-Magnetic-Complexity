@@ -55,6 +55,8 @@ CENTER_LON = 45         # |central-meridian distance| <= 45° -> disk centre, el
 
 USABLE = {"parsed", "no_regions"}
 
+HERE = Path(__file__).resolve().parent   # scripts read and write in their own folder by default
+
 DEFAULT_START = "1996-01"
 DEFAULT_END = "2026-07"
 
@@ -175,11 +177,11 @@ def check(table: pd.DataFrame, name: str) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="Build period-based active-region features")
-    ap.add_argument("--input", default="mount_wilson_dataset.csv")
-    ap.add_argument("--status", default="srs_day_status.csv")
+    ap.add_argument("--input", default=str(HERE / "mount_wilson_dataset.csv"))
+    ap.add_argument("--status", default=str(HERE / "srs_day_status.csv"))
     ap.add_argument("--start", default=DEFAULT_START, help="first month, YYYY-MM")
     ap.add_argument("--end", default=DEFAULT_END, help="last month, YYYY-MM")
-    ap.add_argument("--outdir", default=".")
+    ap.add_argument("--outdir", default=str(HERE))
     a = ap.parse_args()
     out = Path(a.outdir); out.mkdir(parents=True, exist_ok=True)
 
